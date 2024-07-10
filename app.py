@@ -20,14 +20,13 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# chroma 
+
 db = chromadb.PersistentClient(path="./chroma_db")
 embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
 
 chroma_collection = db.get_or_create_collection("pdf_embeddings", embedding_function=embedding_function)
 
 llm = Ollama(model="llama3", request_timeout=60.0)
-
 
 embed_model = HuggingFaceEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
@@ -43,7 +42,6 @@ index = VectorStoreIndex.from_vector_store(
 logging.info(f"Loaded {chroma_collection.count()} embeddings from ChromaDB collection.")
 
 query_engine = index.as_query_engine(llm=llm)
-
 
 tools = [
     QueryEngineTool(
@@ -70,11 +68,26 @@ def query():
         return jsonify({"error": "No prompt provided"}), 400
 
     max_retries = 3
-    timeout_seconds = 60
 
     for attempt in range(max_retries):
         try:
+            start_time = time.time()
+            
+            # time the vector search
+            vector_search_start = time.time()
+            relevant_docs = query_engine.retrieve(prompt)
+            vector_search_time = time.time() - vector_search_start
+            logging.info(f"Vector search took {vector_search_time:.2f} seconds")
+            
+            
+            llm_start = time.time()
             result = agent.query(prompt)
+            llm_time = time.time() - llm_start
+            logging.info(f"LLM response generation took {llm_time:.2f} seconds")
+            
+            total_time = time.time() - start_time
+            logging.info(f"Total query processing took {total_time:.2f} seconds")
+
             try:
                 json_result = json.loads(str(result))
                 if isinstance(json_result, dict) and 'response' in json_result:
@@ -86,24 +99,30 @@ def query():
             
             return jsonify({
                 "full_response": str(result),
-                "concise_answer": concise_answer
+                "concise_answer": concise_answer,
+                "vector_search_time": vector_search_time,
+                "llm_time": llm_time,
+                "total_time": total_time
             })
 
         except Exception as e:
             logging.error(f"Error processing query on attempt {attempt + 1}: {e}")
-            time.sleep(timeout_seconds)
+            time.sleep(1)  
 
-    # use llama 3 at the end
+    # Fallback to using llama3 directly
     try:
-        result = llm.query(prompt)
-        concise_answer = result['choices'][0]['text'] if 'choices' in result and len(result['choices']) > 0 else str(result)
+        fallback_start = time.time()
+        result = llm.complete(prompt)
+        fallback_time = time.time() - fallback_start
+        logging.info(f"Fallback query took {fallback_time:.2f} seconds")
+        
+        concise_answer = result.text if hasattr(result, 'text') else str(result)
         return jsonify({
             "full_response": str(result),
-            "concise_answer": concise_answer
+            "concise_answer": concise_answer,
+            "fallback_time": fallback_time
         })
     except Exception as e:
         logging.error(f"Error processing fallback query with llama 3: {e}")
         return jsonify({"error": "An error occurred while processing your query."}), 500
 
-if __name__ == '__main__':
-    app.run(debug=True)
