@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+    <div class="container mt-5">
+        <h1 class="mb-4">PDF Chatbot</h1>
+        <div class="form-group">
+            <input type="text" class="form-control" id="prompt" placeholder="Enter your query">
+        </div>
+        <button class="btn btn-primary" onclick="sendQuery()">Send</button>
+        <div id="response" class="mt-4"></div>
+    </div>
+
+    <script>
+        function sendQuery() {
+            const prompt = document.getElementById('prompt').value;
+            const responseDiv = document.getElementById('response');
+            responseDiv.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="sr-only">Loading...</span></div>';
+
+            axios.post('/query', { prompt: prompt })
+                .then(function (response) {
+                    responseDiv.innerHTML = `
+                        <h3>Concise Answer:</h3>
+                        <p>${response.data.concise_answer}</p>
+                        <h3>Full Response:</h3>
+                        <p>${response.data.full_response}</p>
+                    `;
+                })
+                .catch(function (error) {
+                    responseDiv.innerHTML = 'Error: ' + error.response.data.error;
+                });
+        }
+    </script>
+</body>
+</html>
