@@ -4,22 +4,18 @@ from PyPDF2.errors import PdfReadError
 import chromadb
 from chromadb.utils import embedding_functions
 
-# Specify the directory where ChromaDB will store its data
 persist_directory = "./chroma_db"
 
-# Set up ChromaDB with persistent storage
 client = chromadb.PersistentClient(path=persist_directory)
 
-# Set up the embedding function
 embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
 
-# Create or get the collection
+
 collection = client.get_or_create_collection(
     name="pdf_embeddings", 
     embedding_function=embedding_function
 )
 
-# Function to read PDF content
 def read_pdf(file_path):
     try:
         with open(file_path, 'rb') as file:
@@ -39,19 +35,17 @@ def read_pdf(file_path):
         print(f"Unexpected error reading PDF {file_path}: {str(e)}")
         return ""
 
-# Process PDFs in the /data folder
 data_folder = "data" 
 for filename in os.listdir(data_folder):
     if filename.endswith(".pdf"):
         file_path = os.path.join(data_folder, filename)
         
-        # Read PDF content
+        
         pdf_content = read_pdf(file_path)
         
-        # Only process if content was successfully extracted
         if pdf_content:
             try:
-                # Add to ChromaDB
+
                 collection.add(
                     documents=[pdf_content],
                     metadatas=[{"source": filename}],
@@ -76,6 +70,5 @@ if stored_items['ids']:
 else:
     print("No documents were successfully embedded.")
 
-# You can also check the total count of items in the collection
 total_count = collection.count()
 print(f"\nTotal number of items in the collection: {total_count}")
